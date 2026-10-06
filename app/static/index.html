@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EPUB3 章节拆分台</title>
+  <style>
+    :root {
+      --bg: #f5f6f8; --panel: #ffffff; --ink: #1f2329; --muted: #6b7280;
+      --line: #e3e6ea; --brand: #2b59c3; --brand-weak: #eaf0fc;
+      --danger: #c0392b; --danger-weak: #fdecea; --ok: #1e7d46; --ok-weak: #e8f6ee;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI",
+        system-ui, sans-serif; background: var(--bg); color: var(--ink);
+    }
+    header {
+      padding: 18px 28px; background: var(--panel); border-bottom: 1px solid var(--line);
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px 28px; }
+    .panel {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 16px;
+    }
+    .panel h2 { font-size: 14px; margin: 0 0 12px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .08em; }
+    .step { margin-bottom: 20px; }
+    .step-num {
+      display: inline-block; width: 20px; height: 20px; border-radius: 50%;
+      background: var(--brand); color: #fff; text-align: center; font-size: 12px;
+      line-height: 20px; margin-right: 6px;
+    }
+    .dropzone {
+      border: 2px dashed var(--line); border-radius: 8px; padding: 22px 12px;
+      text-align: center; color: var(--muted); cursor: pointer; transition: .15s;
+      font-size: 13px;
+    }
+    .dropzone.drag { border-color: var(--brand); background: var(--brand-weak); }
+    .dropzone .fname { color: var(--ink); font-weight: 600; word-break: break-all; }
+    select, button {
+      font: inherit; width: 100%; padding: 9px 12px; border-radius: 8px;
+      border: 1px solid var(--line); background: #fff;
+    }
+    button {
+      cursor: pointer; border: none; background: var(--brand); color: #fff;
+      font-weight: 600;
+    }
+    button:disabled { background: #b6c3df; cursor: not-allowed; }
+    button.ghost { background: #fff; color: var(--brand); border: 1px solid var(--brand); }
+    .parts { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow: auto; }
+    .parts li {
+      padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px;
+      display: flex; gap: 8px; align-items: center;
+    }
+    .parts li:hover { background: var(--brand-weak); }
+    .parts li.active { background: var(--brand); color: #fff; }
+    .parts li .idx { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .parts li.active .idx { color: #dce6fa; }
+    .meta { font-size: 12px; color: var(--muted); margin-top: 8px; }
+    .alert { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 10px; }
+    .alert.err { background: var(--danger-weak); color: var(--danger); border: 1px solid #f3c5bf; }
+    .alert.ok { background: var(--ok-weak); color: var(--ok); border: 1px solid #bfe6d0; }
+    .alert ul { margin: 6px 0 0; padding-left: 18px; }
+    .alert li { margin: 3px 0; word-break: break-all; }
+    .alert code { background: rgba(0,0,0,.06); padding: 0 4px; border-radius: 3px; }
+    iframe {
+      width: 100%; height: calc(100vh - 220px); min-height: 420px; border: 1px solid var(--line);
+      border-radius: 8px; background: #fff;
+    }
+    .preview-head { display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; gap: 12px; }
+    .preview-head .t { font-weight: 600; font-size: 15px; }
+    .preview-head .nav-btns { display: flex; gap: 8px; }
+    .preview-head .nav-btns button { width: auto; padding: 6px 14px; }
+    .hidden { display: none !important; }
+    .spinner { display:inline-block; width:14px;height:14px;border:2px solid #fff;
+      border-top-color: transparent;border-radius:50%;animation:spin .8s linear infinite;
+      vertical-align: -2px; margin-right:6px;}
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>EPUB3 章节拆分台</h1>
+    <p>上传未加密的 EPUB3，选择一篇 spine 正文，按每个 &lt;h2&gt; 切分预览并下载新书。</p>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <div class="step">
+        <h2><span class="step-num">1</span>上传 EPUB</h2>
+        <div id="dropzone" class="dropzone">
+          点击选择或拖入 .epub 文件
+          <div id="fname" class="fname"></div>
+        </div>
+        <input id="file" type="file" accept=".epub,application/epub+zip" class="hidden">
+        <div id="uploadAlert"></div>
+      </div>
+
+      <div class="step">
+        <h2><span class="step-num">2</span>选择 spine 正文</h2>
+        <select id="spineSelect" size="8" disabled></select>
+      </div>
+
+      <div class="step">
+        <h2><span class="step-num">3</span>切分与预览</h2>
+        <button id="splitBtn" disabled>以每个 h2 为切点预览</button>
+        <div id="planAlert" class="meta"></div>
+        <ul id="partsList" class="parts" style="margin-top:10px"></ul>
+      </div>
+
+      <div class="step">
+        <h2><span class="step-num">4</span>下载新书</h2>
+        <button id="downloadBtn" class="ghost" disabled>下载拆分后的 EPUB</button>
+        <div id="downloadAlert"></div>
+      </div>
+    </aside>
+
+    <main class="panel">
+      <div class="preview-head">
+        <div class="t" id="previewTitle">预览区</div>
+        <div class="nav-btns">
+          <button id="prevBtn" class="ghost">上一篇</button>
+          <button id="nextBtn" class="ghost">下一篇</button>
+        </div>
+      </div>
+      <iframe id="preview" title="章节预览"></iframe>
+    </main>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    var state = {
+      sessionId: null,
+      sourceHref: null,
+      parts: [],
+      current: 0,
+      valid: false
+    };
+
+    var el = function (id) { return document.getElementById(id); };
+    var dropzone = el("dropzone"), fileInput = el("file"),
+        fname = el("fname"), spineSelect = el("spineSelect"),
+        splitBtn = el("splitBtn"), downloadBtn = el("downloadBtn"),
+        partsList = el("partsList"), planAlert = el("planAlert"),
+        uploadAlert = el("uploadAlert"), downloadAlert = el("downloadAlert"),
+        iframe = el("preview"), previewTitle = el("previewTitle"),
+        prevBtn = el("prevBtn"), nextBtn = el("nextBtn");
+
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+
+    function alertBox(container, type, message, items) {
+      var html = '<div class="alert ' + type + '">' + esc(message);
+      if (items && items.length) {
+        html += "<ul>";
+        items.forEach(function (it) {
+          var where = it.file ? ' <code>' + esc(it.file) + '</code>' : "";
+          html += "<li>" + esc(it.message) + where + "</li>";
+        });
+        html += "</ul>";
+      }
+      html += "</div>";
+      container.innerHTML = html;
+    }
+    function clearAlert(c) { c.innerHTML = ""; }
+
+    function resetAll(msg) {
+      state.sessionId = null; state.parts = []; state.valid = false;
+      spineSelect.innerHTML = ""; spineSelect.disabled = true;
+      splitBtn.disabled = true; downloadBtn.disabled = true;
+      partsList.innerHTML = "";
+      planAlert.className = "meta"; planAlert.innerHTML = "";
+      iframe.removeAttribute("src");
+      previewTitle.textContent = "预览区";
+      if (msg) alertBox(uploadAlert, "err", msg); else clearAlert(uploadAlert);
+    }
+
+    // ---- 上传 --------------------------------------------------------------
+
+    dropzone.addEventListener("click", function () { fileInput.click(); });
+    dropzone.addEventListener("dragover", function (e) {
+      e.preventDefault(); dropzone.classList.add("drag");
+    });
+    dropzone.addEventListener("dragleave", function () {
+      dropzone.classList.remove("drag");
+    });
+    dropzone.addEventListener("drop", function (e) {
+      e.preventDefault(); dropzone.classList.remove("drag");
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener("change", function () {
+      if (fileInput.files.length) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      clearAlert(uploadAlert);
+      if (!/\.epub$/i.test(file.name)) {
+        resetAll("请选择 .epub 文件");
+        return;
+      }
+      fname.textContent = file.name;
+      var fd = new FormData();
+      fd.append("file", file, file.name);
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/upload");
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          var res = JSON.parse(xhr.responseText);
+          state.sessionId = res.session_id;
+          loadSpine();
+        } else {
+          resetAll(extractError(xhr));
+        }
+      };
+      xhr.onerror = function () { resetAll("上传失败，请重试"); };
+      xhr.send(fd);
+    }
+
+    function extractError(xhr) {
+      try {
+        var j = JSON.parse(xhr.responseText);
+        return j.detail || "请求失败（" + xhr.status + "）";
+      } catch (e) { return "请求失败（" + xhr.status + "）"; }
+    }
+
+    // ---- spine 列表 --------------------------------------------------------
+
+    function loadSpine() {
+      var url = "/api/spine?session_id=" + encodeURIComponent(state.sessionId);
+      fetch(url).then(function (r) {
+        if (!r.ok) return r.json().then(function (j) { throw new Error(j.detail); });
+        return r.json();
+      }).then(function (data) {
+        spineSelect.innerHTML = "";
+        if (!data.spine.length) {
+          resetAll("EPUB 的 spine 中没有可选的 XHTML 正文");
+          return;
+        }
+        data.spine.forEach(function (it) {
+          var opt = document.createElement("option");
+          opt.value = it.href;
+          opt.textContent = it.title + "  —  " + it.href;
+          spineSelect.appendChild(opt);
+        });
+        spineSelect.disabled = false;
+        splitBtn.disabled = false;
+        if (data.encrypted.length) {
+          alertBox(uploadAlert, "err", "检测到加密条目，拆分将被拒绝：",
+                   data.encrypted.map(function (e) {
+                     return { message: "算法 " + e.algorithm, file: e.file };
+                   }));
+        } else {
+          alertBox(uploadAlert, "ok", "上传成功，未检测到加密"
+                   + (data.has_nav ? "，含 EPUB3 导航" : "")
+                   + (data.has_ncx ? "，含 NCX" : ""));
+        }
+      }).catch(function (e) { resetAll(e.message); });
+    }
+
+    // ---- 切分计划 ----------------------------------------------------------
+
+    splitBtn.addEventListener("click", function () {
+      state.sourceHref = spineSelect.value;
+      state.parts = [];
+      partsList.innerHTML = "";
+      downloadBtn.disabled = true;
+      planAlert.className = "meta";
+      planAlert.innerHTML = '<span class="spinner"></span>正在切分与校验…';
+
+      var fd = new FormData();
+      fd.append("session_id", state.sessionId);
+      fd.append("href", state.sourceHref);
+      fetch("/api/plan", { method: "POST", body: fd })
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (j) { throw new Error(j.detail); });
+          return r.json();
+        })
+        .then(function (plan) {
+          state.parts = plan.parts || [];
+          state.valid = !!plan.valid;
+          renderPlan(plan);
+        })
+        .catch(function (e) {
+          planAlert.className = "";
+          planAlert.innerHTML = "";
+          alertBox(planAlert, "err", e.message);
+        });
+    });
+
+    function renderPlan(plan) {
+      partsList.innerHTML = "";
+      plan.parts.forEach(function (p) {
+        var li = document.createElement("li");
+        li.dataset.index = p.index;
+        li.innerHTML = '<span class="idx">' + (p.index + 1) +
+          '.</span><span>' + esc(p.title) + '</span>';
+        li.addEventListener("click", function () { showPart(p.index); });
+        partsList.appendChild(li);
+      });
+
+      if (plan.valid) {
+        planAlert.className = "";
+        alertBox(planAlert, "ok", "切分完成：共 " + plan.parts.length +
+          " 篇，结构与链接校验全部通过，可下载新书。");
+        downloadBtn.disabled = false;
+        showPart(0);
+      } else {
+        var grouped = groupErrors(plan.errors);
+        var title = "校验未通过，已拒绝下载（共 " + plan.errors.length + " 个问题）：";
+        planAlert.className = "";
+        planAlert.innerHTML = "";
+        alertBox(planAlert, "err", title, grouped);
+        downloadBtn.disabled = true;
+        if (plan.parts.length) {
+          showPart(0);
+        } else {
+          iframe.removeAttribute("src");
+          previewTitle.textContent = "预览区";
+        }
+      }
+    }
+
+    var ERROR_LABELS = {
+      "no-h2": "没有 h2 切点",
+      "encrypted": "文件加密",
+      "duplicate-id": "篇内 id 重复",
+      "dangling-link": "悬空内链",
+      "broken-resource": "资源缺失",
+      "bad-xml": "XML 非法"
+    };
+    function groupErrors(errors) {
+      return errors.map(function (e) {
+        return { message: (ERROR_LABELS[e.code] || e.code) + "：" + e.message,
+                 file: e.file };
+      });
+    }
+
+    // ---- 预览 --------------------------------------------------------------
+
+    function showPart(index) {
+      if (!state.parts.length) return;
+      state.current = index;
+      var p = state.parts[index];
+      Array.prototype.forEach.call(partsList.children, function (li) {
+        li.classList.toggle("active", Number(li.dataset.index) === index);
+      });
+      previewTitle.textContent = "第 " + (index + 1) + " / " +
+        state.parts.length + " 篇：" + p.title;
+      var url = "/api/preview?session_id=" + encodeURIComponent(state.sessionId) +
+        "&href=" + encodeURIComponent(state.sourceHref) +
+        "&index=" + index;
+      iframe.src = url;
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === state.parts.length - 1;
+    }
+    prevBtn.addEventListener("click", function () {
+      if (state.current > 0) showPart(state.current - 1);
+    });
+    nextBtn.addEventListener("click", function () {
+      if (state.current < state.parts.length - 1) showPart(state.current + 1);
+    });
+
+    // ---- 下载 --------------------------------------------------------------
+
+    downloadBtn.addEventListener("click", function () {
+      clearAlert(downloadAlert);
+      var url = "/api/download?session_id=" + encodeURIComponent(state.sessionId) +
+        "&href=" + encodeURIComponent(state.sourceHref);
+      fetch(url).then(function (r) {
+        if (r.status === 422) {
+          return r.json().then(function (j) {
+            alertBox(downloadAlert, "err",
+              "服务器校验未通过，拒绝下载：", groupErrors(j.errors || []));
+          });
+        }
+        if (!r.ok) return r.json().then(function (j) { throw new Error(j.detail); });
+        var disp = r.headers.get("Content-Disposition") || "";
+        var m = /filename\*=UTF-8''(.+)$/.exec(disp);
+        var name = m ? decodeURIComponent(m[1]) : "split.epub";
+        return r.blob().then(function (blob) {
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+          alertBox(downloadAlert, "ok", "新书已生成并开始下载：" + name);
+        });
+      }).catch(function (e) {
+        alertBox(downloadAlert, "err", e.message);
+      });
+    });
+  })();
+  </script>
+</body>
+</html>
