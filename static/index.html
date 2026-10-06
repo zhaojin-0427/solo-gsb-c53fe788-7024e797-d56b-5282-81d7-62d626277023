@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EPUB3 章节拆分台</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<header>
+  <h1>EPUB3 章节拆分台</h1>
+  <p class="sub">上传未加密 EPUB3，选择一篇 spine 正文，以每个 <code>h2</code> 为切点预览并下载新书。</p>
+</header>
+
+<main>
+  <section class="card" id="step1">
+    <h2>1 · 上传 EPUB3</h2>
+    <div class="row">
+      <input type="file" id="file" accept=".epub,application/epub+zip" />
+      <button id="uploadBtn" type="button">上传</button>
+    </div>
+    <div id="uploadInfo" class="info"></div>
+  </section>
+
+  <section class="card hidden" id="step2">
+    <h2>2 · 选择 spine 正文</h2>
+    <select id="spineSelect" size="8"></select>
+    <div class="row">
+      <button id="previewBtn" type="button">分析 h2 切点</button>
+    </div>
+    <div id="previewInfo" class="info"></div>
+  </section>
+
+  <section class="card hidden" id="step3">
+    <h2>3 · 逐篇预览</h2>
+    <p id="segSummary" class="info"></p>
+    <div class="seg-toolbar">
+      <button type="button" id="prevSeg">← 上一篇</button>
+      <span id="segPos"></span>
+      <button type="button" id="nextSeg">下一篇 →</button>
+    </div>
+    <iframe id="previewFrame" title="章节预览"></iframe>
+    <div class="row">
+      <button id="downloadBtn" type="button" class="primary">下载拆分后的新书 (.epub)</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="errors">
+    <h2>无法下载</h2>
+    <p id="errorMsg"></p>
+    <ul id="errorFiles"></ul>
+  </section>
+</main>
+
+<footer>
+  <span>Python · FastAPI · lxml · 原生 JavaScript</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

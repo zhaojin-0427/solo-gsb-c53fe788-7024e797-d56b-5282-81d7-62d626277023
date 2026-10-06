@@ -1,0 +1,13 @@
+services:
+  epub-splitter:
+    build: .
+    image: epub3-splitter:latest
+    container_name: epub3-splitter
+    ports:
+      - "8000:8000"
+    volumes:
+      - epub-data:/data
+    restart: unless-stopped
+
+volumes:
+  epub-data:
